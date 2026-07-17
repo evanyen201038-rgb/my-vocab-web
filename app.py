@@ -1,11 +1,11 @@
 import os
 import json
-import requests  # 引入網路請求模組，用來直接呼叫 Gemini
+import requests
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
-# 🔐 這裡保持讀取 OPENAI_API_KEY 這個變數名稱，這樣你不需要去改 Render 左邊的格子！
+# 🔐 安全從雲端讀取金鑰，名字統一保持 OPENAI_API_KEY
 GEMINI_API_KEY = os.environ.get("OPENAI_API_KEY", "") 
 
 DB_FILE = 'vocab_evolution_db.json'
@@ -13,13 +13,18 @@ DB_FILE = 'vocab_evolution_db.json'
 def load_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r', encoding='utf-8') as f:
-            try: return json.load(f)
-            except: return []
+            try: 
+                return json.load(f)
+            except: 
+                return []
     return []
 
 def save_db(data):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    try:
+        with open(DB_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"資料庫寫入失敗: {str(e)}")
 
 @app.route('/')
 def index():
@@ -35,7 +40,6 @@ def analyze_word():
     if not GEMINI_API_KEY:
         return jsonify({"status": "error", "message": "後台尚未設定 API 金鑰！"})
 
-    # 🎯 丟給 Gemini 的高階語言學提示詞
     prompt = f"""
     你現在是頂級語言學家。請針對英文單字 "{word_input}" 進行深度的字根字首與詞源學拆解分析。
     必須嚴格且『只能』回傳以下規定的純 JSON 格式，不要包含任何 ```json 字樣或多餘的文字：
@@ -47,37 +51,40 @@ def analyze_word():
         "derivatives": [
             {{"word": "衍生字1", "part": "詞性", "meaning": "中文解釋"}},
             {{"word": "衍生字2", "part": "詞性", "meaning": "中文解釋"}},
-            {{"word": "衍生字3", "part": "詞性", "meaning": "中文解釋"}},
-            {{"word": "衍生字4", "part": "詞性", "meaning": "中文解釋"}}
+            {{"word": "衍生字3", "part": "中文解釋", "meaning": "中文解釋"}},
+            {{"word": "衍生字4", "part": "中文解釋", "meaning": "中文解釋"}}
         ]
     }}
     """
     
-    # 🚀 串接 Google 官方最新的 Gemini 2.5 快速引擎
     url = f"https://googleapis.com{GEMINI_API_KEY}"
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=15)
         res_data = response.json()
         
-        # 抓取 AI 回傳的純文字內容並轉換成網頁看得懂的格式
         ai_raw_text = res_data['candidates'][0]['content']['parts'][0]['text'].strip()
         
-        # 防止 AI 自作聰明加上 ```json 標籤，幫它做個清洗
+        # 清洗 ```json 標籤
         if ai_raw_text.startswith("```"):
-            ai_raw_text = ai_raw_text.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
+            lines = ai_raw_text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines[-1].startswith("```"):
+                lines = lines[:-1]
+            ai_raw_text = "\n".join(lines).strip()
             
         ai_data = json.loads(ai_raw_text)
         
-        # 寫入本地 JSON 資料庫
         current_db = load_db()
         current_db.insert(0, ai_data)
         save_db(current_db)
         
         return jsonify({"status": "success", "data": ai_data})
     except Exception as e:
-        return jsonify({"status": "error", "message": "AI 解析失敗，請確認金鑰是否正確"})
+        return jsonify({"status": "error", "message": f"AI 解析失敗: {str(e)}"})
 
 if __name__ == '__main__':
+    # 💡 在本地執行時依然提供除錯，但移除 system("chcp") 防止 Linux 雲端當機
     app.run(debug=True)
