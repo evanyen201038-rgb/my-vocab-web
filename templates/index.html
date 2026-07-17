@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 英文單字詞源拆解網</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; padding: 40px; color: #333; }
+        .search-container { background: white; padding: 25px; border-radius: 12px; max-width: 650px; margin: 0 auto 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; }
+        input { padding: 12px; width: 65%; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; transition: 0.3s; }
+        input:focus { border-color: #0078d4; outline: none; }
+        button { padding: 12px 24px; background: #0078d4; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-left: 10px; }
+        button:hover { background: #005a9e; }
+        .card { background: white; border-top: 6px solid #0078d4; padding: 25px; margin: 20px auto; max-width: 700px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); text-align: left; }
+        .section-title { font-weight: bold; color: #0078d4; margin-top: 15px; display: inline-block; border-bottom: 2px solid #0078d4; padding-bottom: 2px; }
+        .evolution-text { background-color: #f9f9f9; padding: 12px; border-radius: 6px; border-left: 3px solid #ccc; font-style: italic; font-size: 14px; line-height: 1.6; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 5px; }
+
+        /* 🔐 密碼鎖畫面樣式 */
+        #lockScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(240, 242, 245, 0.98); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .password-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+    </style>
+</head>
+<body>
+
+    <!-- 🔐 密碼鎖畫面 (預設顯示) -->
+    <div id="lockScreen">
+        <div class="password-box">
+            <h2 style="margin-top:0;">🔒 本網站為私人受保護專案</h2>
+            <p style="color:#666; margin-bottom:20px;">請輸入邀請金鑰以存取 AI 拆解功能</p>
+            <input type="password" id="sitePassword" placeholder="請輸入存取密碼..." style="width:80%; margin-bottom:20px;"><br>
+            <button onclick="checkPassword()" style="margin:0; width:88%;">解除鎖定</button>
+        </div>
+    </div>
+
+    <!-- 🌐 主要網站內容 (驗證成功才會完全露出來) -->
+    <div id="mainContent" style="display: none;">
+        <div style="text-align: center;">
+            <h1>🕵️‍♂️ AI 英文單字字根大解密 (測試模式)</h1>
+            <p style="color: #666;">輸入任何英文單字，系統將自動拆解其結構、追溯字根演變，並推薦同源大軍！</p>
+            <button onclick="logout()" style="background:#888; font-size:12px; padding:5px 10px; margin-bottom:15px;">登出密碼鎖</button>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="wordInput" placeholder="請輸入單字，例如: prospective 或 biology...">
+            <button onclick="askAI()">開始拆解</button>
+        </div>
+
+        <div id="displayArea">
+            {% for item in vocab_list %}
+            <div class="card">
+                <h2 style="margin-top:0; color:#111;">🔍 查詢單字：<span style="color:#0078d4;">{{ item.word }}</span></h2>
+                <span class="section-title">🧱 單字組成架構</span>
+                <p><strong>{{ item.structure }}</strong></p>
+                <span class="section-title">💡 核心字根情報</span>
+                <p>{{ item.root_info }}</p>
+                <span class="section-title">📜 字根核心觀念與歷史演變</span>
+                <p class="evolution-text">「 {{ item.evolution }} 」</p>
+                <span class="section-title">📚 同源字族衍生詞</span>
+                <ul>
+                    {% for d in item.derivatives %}
+                    <li><strong>{{ d.word }}</strong> ({{ d.part }}) - {{ d.meaning }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        // 🔑 這是你的自訂網站密碼，你可以隨便修改它（例如改成 1234 或 evan888）
+        const CORRECT_PASSWORD = "evan"; 
+
+        // 檢查使用者以前有沒有登入過（有的話就免重打密碼）
+        if (localStorage.getItem("site_authenticated") === "true") {
+            document.getElementById("lockScreen").style.display = "none";
+            document.getElementById("mainContent").style.display = "block";
+        }
+
+        // 密碼驗證邏輯
+        function checkPassword() {
+            const userInput = document.getElementById("sitePassword").value;
+            if (userInput === CORRECT_PASSWORD) {
+                // 記住登入狀態，這樣同一個瀏覽器下次進來不用重複打密碼
+                localStorage.setItem("site_authenticated", "true");
+                document.getElementById("lockScreen").style.display = "none";
+                document.getElementById("mainContent").style.display = "block";
+            } else {
+                alert("❌ 密碼錯誤！無法進入網站。");
+            }
+        }
+
+        // 登出功能（提供給想測試密碼牆時使用）
+        function logout() {
+            localStorage.removeItem("site_authenticated");
+            location.reload();
+        }
+
+        function askAI() {
+            const targetWord = document.getElementById('wordInput').value;
+            if(!targetWord) return alert('請先輸入英文單字！');
+            alert('系統正在解析單字，請稍候 1-2 秒...');
+            fetch('/analyze_word', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word: targetWord })
+            })
+            .then(res => res.json())
+            .then(result => {
+                if(result.status === 'success') { location.reload(); } 
+                else { alert('分析失敗：' + result.message); }
+            });
+        }
+    </script>
+</body>
+</html>
