@@ -55,10 +55,10 @@ def analyze_word():
     }}
     """
     
-    # 🚀 2026 最新安全性規範：網址後面不再帶有 key=，全面改走乾淨的標準安全通道
+    # 🚀 2026 生產環境黃金通道：捨棄 v1beta 測試通道，全面改走正式官方生產通道 v1
     url = "https://googleapis.com"
     
-    # 🔑 終極關鍵：遵循 2026 授權金鑰規定，把 AQ 金鑰塞進 Headers (標頭檔) 裡進行身分驗證！
+    # 🔑 2026 授權金鑰感應規範：標準官方 API Key 安全驗證標頭格式
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY
@@ -69,16 +69,19 @@ def analyze_word():
             "parts": [{"text": prompt}]
         }],
         "generationConfig": {
-            "responseMimeType": "application/json"
+            "responseMimeType": "application/json" # 強制要求輸出純 JSON 資料
         }
     }
     
     try:
-        # 發送包含安全認證標頭的請求
         response = requests.post(url, json=payload, headers=headers, timeout=20)
-        res_data = response.json()
         
-        ai_raw_text = res_data["candidates"]["content"]["parts"]["text"].strip()
+        # 🛡️ 安全防禦防崩潰機制：如果 Google 回傳錯誤碼，直接抓取錯誤訊息，絕對不盲目解析！
+        if response.status_code != 200:
+            return jsonify({"status": "error", "message": f"Google 伺服器拒絕連線 (錯誤代碼 {response.status_code})。請檢查 Render 後台的 Value 欄位金鑰是否複製完整。"})
+            
+        res_data = response.json()
+        ai_raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
         ai_data = json.loads(ai_raw_text)
         
         current_db = load_db()
@@ -87,7 +90,7 @@ def analyze_word():
         
         return jsonify({"status": "success", "data": ai_data})
     except Exception as e:
-        return jsonify({"status": "error", "message": f"AI 大腦驗證失敗，原因: {str(e)}"})
+        return jsonify({"status": "error", "message": f"資料解析出錯，原因: {str(e)}"})
 
 if __name__ == '__main__':
     app.run(debug=True)
